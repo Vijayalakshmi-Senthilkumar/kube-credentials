@@ -3,9 +3,13 @@ import app from '../app';
 import { db } from '../database/db';
 
 // Mock node-fetch
-jest.mock('node-fetch');
-const fetch = require('node-fetch');
-const { Response } = jest.requireActual('node-fetch');
+import fetch, { Response } from 'node-fetch';
+jest.mock('node-fetch', () => ({
+  __esModule: true,
+  default: jest.fn(),
+  Response: jest.requireActual('node-fetch').Response
+}));
+const mockFetch = fetch as jest.MockedFunction<typeof fetch>;
 
 describe('Verification Service API', () => {
   beforeEach(() => {
@@ -36,7 +40,7 @@ describe('Verification Service API', () => {
       };
 
       // Mock successful issuance service response
-      fetch.mockResolvedValue(
+      mockFetch.mockResolvedValue(
         new Response(JSON.stringify({
           success: true,
           credential: {
@@ -70,7 +74,7 @@ describe('Verification Service API', () => {
       };
 
       // Mock issuance service response for non-existent credential
-      fetch.mockResolvedValue(
+      mockFetch.mockResolvedValue(
         new Response(JSON.stringify({
           success: false
         }), { status: 200, headers: { 'Content-Type': 'application/json' } })
@@ -112,7 +116,7 @@ describe('Verification Service API', () => {
       };
 
       // Mock network error
-      fetch.mockRejectedValue(new Error('Network error'));
+      mockFetch.mockRejectedValue(new Error('Network error'));
 
       const response = await request(app)
         .post('/api/verification/verify')

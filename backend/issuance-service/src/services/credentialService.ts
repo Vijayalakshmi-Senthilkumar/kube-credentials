@@ -18,13 +18,17 @@ export class CredentialService {
 
   constructor() {
     // Generate worker ID based on hostname (pod name in Kubernetes)
-    this.workerId = this.getWorkerId();
+    this.workerId = this.generateWorkerId();
   }
 
-  private getWorkerId(): string {
+  private generateWorkerId(): string {
     const hostname = os.hostname();
     // In Kubernetes, hostname will be the pod name
     return hostname;
+  }
+
+  public getWorkerId(): string {
+    return this.workerId;
   }
 
   private generateCredentialId(data: Record<string, any>): string {
@@ -69,10 +73,6 @@ export class CredentialService {
     } catch (error) {
       throw new Error(`Failed to issue credential: ${error}`);
     }
-  }
-
-  public getWorkerId(): string {
-    return this.workerId;
   }
 }
 

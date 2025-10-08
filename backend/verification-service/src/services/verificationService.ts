@@ -23,15 +23,19 @@ export class VerificationService {
   private issuanceServiceUrl: string;
 
   constructor() {
-    this.workerId = this.getWorkerId();
+    this.workerId = this.generateWorkerId();
     // In Kubernetes, this will be the service name
     // For local development, use localhost
     this.issuanceServiceUrl = process.env.ISSUANCE_SERVICE_URL || 'http://localhost:3001';
   }
 
-  private getWorkerId(): string {
+  private generateWorkerId(): string {
     const hostname = os.hostname();
     return hostname;
+  }
+
+  public getWorkerId(): string {
+    return this.workerId;
   }
 
   private generateCredentialId(data: Record<string, any>): string {
@@ -123,10 +127,6 @@ export class VerificationService {
       // If we can't reach issuance service, we can't verify
       throw new Error('Unable to connect to issuance service');
     }
-  }
-
-  public getWorkerId(): string {
-    return this.workerId;
   }
 }
 
