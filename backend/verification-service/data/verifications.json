@@ -1,3 +1,12 @@
 {
-  "verifications": []
+  "verifications": [
+    {
+      "credentialId": "f84995ecd34ced1dc61baf44c2382df8e68b5cea2975ddf27d695a4682b8eb43",
+      "verifiedBy": "LAPTOP-8GEBQS9O",
+      "verifiedAt": "2025-10-09T02:05:56.259Z",
+      "status": "valid",
+      "issuedBy": "LAPTOP-8GEBQS9O",
+      "issuedAt": "2025-10-09T02:05:33.235Z"
+    }
+  ]
 }
