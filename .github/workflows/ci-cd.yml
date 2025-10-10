@@ -1,0 +1,157 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test-issuance:
+    name: Test Issuance Service
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend/issuance-service
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: backend/issuance-service/package-lock.json
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Run tests
+        run: npm test -- --coverage
+      
+      - name: Upload coverage
+        uses: codecov/codecov-action@v3
+        with:
+          files: ./backend/issuance-service/coverage/lcov.info
+          flags: issuance-service
+
+  test-verification:
+    name: Test Verification Service
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend/verification-service
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: backend/verification-service/package-lock.json
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Run tests
+        run: npm test -- --coverage
+      
+      - name: Upload coverage
+        uses: codecov/codecov-action@v3
+        with:
+          files: ./backend/verification-service/coverage/lcov.info
+          flags: verification-service
+
+  test-frontend:
+    name: Test Frontend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Run tests
+        run: CI=true npm test -- --coverage
+      
+      - name: Upload coverage
+        uses: codecov/codecov-action@v3
+        with:
+          files: ./frontend/coverage/lcov.info
+          flags: frontend
+
+  build-and-push:
+    name: Build and Push Docker Images
+    needs: [test-issuance, test-verification, test-frontend]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+      
+      - name: Login to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+      
+      - name: Build and push Issuance Service
+        uses: docker/build-push-action@v4
+        with:
+          context: ./backend/issuance-service
+          push: true
+          tags: ${{ secrets.DOCKER_USERNAME }}/kube-credential-issuance:latest,${{ secrets.DOCKER_USERNAME }}/kube-credential-issuance:${{ github.sha }}
+          cache-from: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/kube-credential-issuance:latest
+          cache-to: type=inline
+      
+      - name: Build and push Verification Service
+        uses: docker/build-push-action@v4
+        with:
+          context: ./backend/verification-service
+          push: true
+          tags: ${{ secrets.DOCKER_USERNAME }}/kube-credential-verification:latest,${{ secrets.DOCKER_USERNAME }}/kube-credential-verification:${{ github.sha }}
+          cache-from: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/kube-credential-verification:latest
+          cache-to: type=inline
+      
+      - name: Build and push Frontend
+        uses: docker/build-push-action@v4
+        with:
+          context: ./frontend
+          push: true
+          tags: ${{ secrets.DOCKER_USERNAME }}/kube-credential-frontend:latest,${{ secrets.DOCKER_USERNAME }}/kube-credential-frontend:${{ github.sha }}
+          cache-from: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/kube-credential-frontend:latest
+          cache-to: type=inline
+
+  deploy:
+    name: Deploy to Kubernetes
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Configure kubectl
+        uses: azure/k8s-set-context@v3
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.KUBE_CONFIG }}
+      
+      - name: Deploy to Kubernetes
+        run: |
+          kubectl apply -f k8s/
+          kubectl rollout status deployment/issuance-service
+          kubectl rollout status deployment/verification-service
+          kubectl rollout status deployment/frontend

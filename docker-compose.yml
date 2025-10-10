@@ -1,0 +1,76 @@
+version: '3.8'
+
+services:
+  issuance-service:
+    build:
+      context: ./backend/issuance-service
+      dockerfile: Dockerfile
+    container_name: issuance-service
+    ports:
+      - "3001:3001"
+    environment:
+      - PORT=3001
+      - NODE_ENV=development
+    volumes:
+      - issuance-data:/app/data
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3001/api/credentials/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - kube-credential-network
+
+  verification-service:
+    build:
+      context: ./backend/verification-service
+      dockerfile: Dockerfile
+    container_name: verification-service
+    ports:
+      - "3002:3002"
+    environment:
+      - PORT=3002
+      - NODE_ENV=development
+      - ISSUANCE_SERVICE_URL=http://issuance-service:3001
+    volumes:
+      - verification-data:/app/data
+    depends_on:
+      - issuance-service
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3002/api/verification/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - kube-credential-network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - issuance-service
+      - verification-service
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:80"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - kube-credential-network
+
+volumes:
+  issuance-data:
+    driver: local
+  verification-data:
+    driver: local
+
+networks:
+  kube-credential-network:
+    driver: bridge
